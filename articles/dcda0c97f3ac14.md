@@ -2,7 +2,7 @@
 title: "Supabase ✖️ Prisma ✖️ Next.jsでフルスタックアプリを作って見た supabaseとprismaの連携編"
 emoji: "😎"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ["nextjs","supabase","prisma"]
+topics: ["nextjs","supabase","prisma","typescript"]
 published: false
 ---
 # はじめに
@@ -15,12 +15,69 @@ https://github.com/Takuya0202/TechJamIteam
 - prismaとsupabaseの設定。
 - supabaseとnext.jsを使ったユーザー認証、ミドルウェア
 - prismaを使ったcrud操作
+- supabase storageを使って画像を保存する方法
+この章ではsupabseとprismaを連携させてデータベースにテーブルを作成する方法を取り扱います。
 
 ## ディレクトリ構造
+ディレクトリ構造は以下の通りとなります。
 ```bash
+next-app/
+├── app/
+│   ├── api/                    # APIディレクトリ
+│   │   ├── auth/
+│   │   │   └── register/
+│   │   │       └── route.ts # ユーザー登録のAPI
+│   │   ├── genre/
+│   │   │   └── index/
+│   │   │       └── route.ts
+│   │   ├── store/
+│   │   │   ├── [id]/
+│   │   │   │   └── route.ts
+│   │   │   ├── index/
+│   │   │   │   └── route.ts
+│   │   │   └── search/
+│   │   │       └── [id]/
+│   │   │           └── route.ts
+│   │   └── user/
+│   │       ├── edit/
+│   │       │   └── route.ts
+│   │       └── show/
+│   │           └── route.ts
+│   ├── components/             # コンポーネント
+│   ├── actions/                # Server Actions
+│   │   └── login.ts            # ログインのserver action
+│   ├── login/                  # ログインページ
+│   │   └── page.tsx
+│   ├── profile/                # プロフィールページ
+│   │   └── page.tsx
+│   ├── register/               # ユーザー登録ページ
+│   │   └── page.tsx
+│   ├── store/                  # 店舗ページ
+│   │   ├── [id]/
+│   │   │   └── page.tsx
+│   │   └── page.tsx
+│   ├── top/                    # トップページ
+│   │   └── page.tsx
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+├── hooks/                      # カスタムフック
+│   ├── useAuth.ts
+├── lib/                        # Prismaクライアント
+│   └── prisma.ts
+├── prisma/                     # モデル定義、seeder
+│   ├── schema.prisma           # Prismaスキーマ
+│   └── seed.ts                 # シードファイル
+├── utils/                      # ユーティリティ
+│   └── supabase/
+│       ├── client.ts           # Supabaseクライアント
+│       ├── middleware.ts       # Supabaseミドルウェア
+│       └── server.ts           # Supabaseサーバー
+├── middleware.ts               # Next.jsミドルウェア
+|-- .env                        # 環境設定
 ```
 
-## supabaseとprismaの設定
+## supabaseとprismaの連携
 ### prismaとsupabaseについて理解する。
 #### supabaseとは何か
 **supabase**とはPostgreSQLをベースとしたデータベースや認証、ストレージなどバックエンドに必要な機能を提供してくれるサービスです。
@@ -38,6 +95,23 @@ project名とパスワードを設定することで作成できます。
 `Database Password`は後ほど使うので覚えておきましょう
 これでDBに関しては作成できました。
 
+### 環境設定をする
+次にsupabaseにアクセスするための環境設定を行います。
+以下の4つの環境変数を取得します。
+```.env
+DATABASE_URL=
+DIRECT_URL=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+先ほど作成したsupabaseのプロジェクトの画面上部の`Connect`をクリックします。
+以下の画面が開かれるので`Next.js`と`Prisma`を選択して貼り付けます。
+![](/images/supabase_connection.png)
+![](/images/supabase-env.png)
+
+`DATABASE_URL`と`DIRECT_URL`はprismaからsupabaseにアクセスをする際に使用します。
+`NEXT_PUBLIC_SUPABSE_URL`と`NEXT_PUBLIC_SUPABASE_ANON_KEY`はnextからsupabaseにアクセスするときに使います。
+
 ### prismaのセットアップ
 次にprismaをセットアップします。
 以下を実行
@@ -53,7 +127,6 @@ npx prisma init
 ```prisma:schema.prisma
 generator client {
   provider = "prisma-client-js"
-  // output   = "../app/generated/prisma" いらない
 }
 
 datasource db {
@@ -62,14 +135,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 ```
-
-次に取得先の`.env`にある`DATABASE_URL`と`DIRECT_URL`を取得します。
-先ほど作成したsupabaseのプロジェクトの画面上部の`Connect`をクリックします。
-そうすると以下の画面になるため、ORMsからPrismaを選択してコードを`.env`に張り付けしてください。
-
-![](/images/supabase_connection.png)
-
-おそらくurlの中身に`[YOUR-PASSWORD]`という文字があるのでそこを先ほど設定した`Database Password`に変更してください。
 これでprismaとsupabaseを連携することができました。
 
 ## テーブルを定義する。
@@ -92,6 +157,8 @@ model Store {
 
 ### 1:多のリレーション定義
 次に1:多のリレーションの方法を考えます。
+今回はお店(Storeテーブル)とジャンル(Genreテーブル)の関係を例に考えます。
+
 ```prisma:prisma/schema.prisma
 // モデルの定義
 model Store {
@@ -106,12 +173,6 @@ model Store {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  recommends    Recommend[]
-  storeLikes    StoreLike[]
-  storeSupports StoreSupport[]
-  comments      Comment[]
-  storeImage    StoreImage[]
 }
 
 model Genre {
@@ -123,6 +184,6 @@ model Genre {
 
   // 接続を定義
   stores Store[]
-  forms  Form[]
 }
 ```
+
