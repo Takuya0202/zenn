@@ -6,7 +6,7 @@ topics: ["nextjs","supabase","prisma","typescript"]
 published: false
 ---
 # はじめに
-今回next.jsとsupabaseとprismaをつかってアプリケーションをチームで開発しました。
+next.jsとsupabaseとprismaをつかってアプリケーションをチームで開発しました。
 その際に学習した内容をまとめていきます
 開発したプロジェクトはこちらです。
 https://github.com/Takuya0202/meshiltupara
@@ -17,6 +17,7 @@ https://github.com/Takuya0202/meshiltupara
 - supabaseとnext.jsを使ったユーザー認証、ミドルウェア
 - prismaを使ったcrud操作
 - supabase storageを使って画像を保存する方法
+  
 この章ではsupabseとprismaを連携させてデータベースにテーブルを作成する方法を取り扱います。
 
 ## ディレクトリ構造
