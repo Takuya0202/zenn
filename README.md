@@ -1,2 +1,2 @@
 # zenn
-zennとの連携
+[zennのアカウントはこちら](https://zenn.dev/amethyst)
